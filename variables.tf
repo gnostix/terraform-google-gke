@@ -113,7 +113,7 @@ variable "machine_type" {
 }
 
 variable "node_count" {
-  description = "Fixed number of nodes (per zone for regional clusters)."
+  description = "Fixed number of nodes (per zone for regional clusters). Ignored when `autoscaling` is set."
   type        = number
   default     = 1
 
@@ -162,5 +162,34 @@ variable "node_labels" {
   type        = map(string)
   default = {
     pool = "default"
+  }
+}
+
+variable "autoscaling" {
+  description = <<-EOT
+    Cluster autoscaler for the node pool. null (default) = fixed size from node_count.
+    min_nodes / max_nodes are PER ZONE. min_nodes = 0 lets an idle pool scale to zero
+    (pods are scheduled again when nodes come back). location_policy: BALANCED spreads
+    nodes across zones, ANY prefers zones with capacity (good for Spot).
+  EOT
+  type = object({
+    min_nodes       = number
+    max_nodes       = number
+    location_policy = optional(string, "ANY")
+  })
+  default = null
+
+  validation {
+    condition = var.autoscaling == null || try(
+      var.autoscaling.min_nodes >= 0 &&
+      var.autoscaling.max_nodes >= 1 &&
+      var.autoscaling.max_nodes >= var.autoscaling.min_nodes,
+    false)
+    error_message = "autoscaling: need 0 <= min_nodes <= max_nodes and max_nodes >= 1."
+  }
+
+  validation {
+    condition     = var.autoscaling == null || try(contains(["BALANCED", "ANY"], var.autoscaling.location_policy), false)
+    error_message = "autoscaling.location_policy must be BALANCED or ANY."
   }
 }

@@ -97,7 +97,21 @@ resource "google_container_node_pool" "default" {
   location = var.location
   cluster  = google_container_cluster.this.name
 
-  node_count = var.node_count
+  # Fixed size OR autoscaler - never both. With autoscaling, node_count = null
+  # means "not managed by Terraform": the autoscaler owns the number of nodes,
+  # so plans don't fight it.
+  node_count = var.autoscaling == null ? var.node_count : null
+
+  # Rendered 0 or 1 times - same `dynamic` pattern as private_cluster_config.
+  # Adding/removing this block is an in-place update of the pool (no replacement).
+  dynamic "autoscaling" {
+    for_each = var.autoscaling == null ? [] : [var.autoscaling]
+    content {
+      min_node_count  = autoscaling.value.min_nodes
+      max_node_count  = autoscaling.value.max_nodes
+      location_policy = autoscaling.value.location_policy
+    }
+  }
 
   management {
     auto_repair  = true # also replaces reclaimed Spot nodes
