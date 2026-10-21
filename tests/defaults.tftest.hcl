@@ -34,6 +34,10 @@ run "defaults_are_the_documented_contract" {
     error_message = "Secret Manager add-on must be off by default."
   }
   assert {
+    condition     = google_container_node_pool.default.node_count == 1
+    error_message = "Without autoscaling the pool must have a fixed node_count (default 1)."
+  }
+  assert {
     condition     = google_container_node_pool.default.name == "unit-pool"
     error_message = "node pool name must be <name>-pool."
   }
@@ -66,5 +70,29 @@ run "consumer_can_opt_into_spot" {
   assert {
     condition     = google_container_node_pool.default.node_config[0].spot == true
     error_message = "spot = true must produce Spot nodes."
+  }
+}
+
+run "autoscaling_renders_the_block" {
+  command = plan
+
+  variables {
+    autoscaling = {
+      min_nodes = 0
+      max_nodes = 3
+    }
+  }
+
+  assert {
+    condition     = google_container_node_pool.default.autoscaling[0].min_node_count == 0
+    error_message = "autoscaling.min_nodes must map to min_node_count."
+  }
+  assert {
+    condition     = google_container_node_pool.default.autoscaling[0].max_node_count == 3
+    error_message = "autoscaling.max_nodes must map to max_node_count."
+  }
+  assert {
+    condition     = google_container_node_pool.default.autoscaling[0].location_policy == "ANY"
+    error_message = "location_policy must default to ANY."
   }
 }

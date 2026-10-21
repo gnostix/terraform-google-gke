@@ -5,6 +5,11 @@ versions: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- `autoscaling` input (`{ min_nodes, max_nodes, location_policy }`, default `null`): enables the
+  cluster autoscaler on the node pool, including scale-to-zero. With the default, behaviour is
+  unchanged (fixed `node_count`), so this is a MINOR release.
+
 ## [1.0.0] - 2026-10-21
 
 ### Added

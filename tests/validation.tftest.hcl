@@ -51,3 +51,26 @@ run "rejects_tiny_disk" {
   }
   expect_failures = [var.disk_size_gb]
 }
+
+run "rejects_autoscaling_min_greater_than_max" {
+  command = plan
+  variables {
+    autoscaling = {
+      min_nodes = 3
+      max_nodes = 1
+    }
+  }
+  expect_failures = [var.autoscaling]
+}
+
+run "rejects_unknown_location_policy" {
+  command = plan
+  variables {
+    autoscaling = {
+      min_nodes       = 0
+      max_nodes       = 2
+      location_policy = "RANDOM"
+    }
+  }
+  expect_failures = [var.autoscaling]
+}
