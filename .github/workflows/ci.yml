@@ -1,0 +1,42 @@
+# Module CI: no cloud access needed - fmt, validate, mocked tests.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        # Test the oldest and newest Terraform we claim to support.
+        terraform: ["1.9.8", "1.13.3"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ matrix.terraform }}
+          terraform_wrapper: false
+
+      - name: fmt
+        run: terraform fmt -check -recursive
+
+      - name: validate module
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: validate example
+        working-directory: examples/basic
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: test (mocked provider, plan-only)
+        run: terraform test

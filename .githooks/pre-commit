@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# fmt + validate + mocked tests before every commit.
+# Enable once per clone:  git config core.hooksPath .githooks
+set -euo pipefail
+command -v terraform >/dev/null 2>&1 || { echo "pre-commit: terraform not found - skipping" >&2; exit 0; }
+cd "$(git rev-parse --show-toplevel)"
+
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.tf' '*.tftest.hcl')
+[ -z "$files" ] && exit 0
+
+unformatted=$(echo "$files" | xargs terraform fmt -check -list=true 2>/dev/null || true)
+if [ -n "$unformatted" ]; then
+  echo "$unformatted" | xargs terraform fmt >/dev/null
+  echo "pre-commit: reformatted - review, then: git add -u && git commit" >&2
+  echo "$unformatted" | sed 's/^/  - /' >&2
+  exit 1
+fi
+
+[ -d .terraform ] || terraform init -backend=false -input=false >/dev/null
+terraform validate -no-color >&2
+terraform test -no-color >&2

@@ -1,0 +1,9 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+# A reusable module does NOT commit a lock file: the CONSUMER's lock file
+# decides provider versions within this module's constraints.
+.terraform.lock.hcl
+.DS_Store
