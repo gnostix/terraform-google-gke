@@ -24,6 +24,13 @@ module "gke" {
 }
 ```
 
+Scale-to-zero node pool (since v1.1.0):
+
+```hcl
+  spot        = true
+  autoscaling = { min_nodes = 0, max_nodes = 3 }
+```
+
 Always pin `?ref=` to a **tag** (or a commit SHA), never a branch.
 A full, runnable example is in [`examples/basic`](examples/basic).
 
@@ -59,7 +66,8 @@ and then with `moved` blocks.
 | `managed_prometheus` | bool | `true` | Managed Service for Prometheus |
 | `enable_secret_manager_addon` | bool | `false` | GKE Secret Manager CSI add-on |
 | `machine_type` | string | `"e2-medium"` | Node machine type |
-| `node_count` | number | `1` | Fixed node count (per zone if regional) |
+| `node_count` | number | `1` | Fixed node count (per zone if regional); ignored with `autoscaling` |
+| `autoscaling` | object | `null` | `{ min_nodes, max_nodes, location_policy = "ANY" }` per zone; `null` = fixed size |
 | `spot` | bool | `false` | Spot VMs (cheaper, interruptible) |
 | `disk_type` | string | `"pd-balanced"` | pd-standard, pd-balanced, pd-ssd |
 | `disk_size_gb` | number | `100` | Boot disk size, >= 10 |
