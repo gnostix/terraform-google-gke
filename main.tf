@@ -8,7 +8,7 @@ resource "google_container_cluster" "this" {
   name     = var.name
   location = var.location
 
-  # Nodes live in google_container_node_pool.default; GKE insists on creating
+  # Nodes live in google_container_node_pool.pools; GKE insists on creating
   # a default pool first, so create 1 node and delete it immediately.
   remove_default_node_pool = true
   initial_node_count       = 1
@@ -18,8 +18,8 @@ resource "google_container_cluster" "this" {
   node_config {
     service_account = google_service_account.nodes.email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
-    disk_type       = var.disk_type
-    disk_size_gb    = var.disk_size_gb
+    disk_type       = "pd-standard" # cheapest: this node lives for ~2 minutes
+    disk_size_gb    = 30
   }
 
   deletion_protection = var.deletion_protection
@@ -89,23 +89,23 @@ resource "google_container_cluster" "this" {
 }
 
 # -----------------------------------------------------------------------------
-# Node pool
+# Node pools - one resource instance per entry in var.node_pools (v2.0.0)
+#   module.<call>.google_container_node_pool.pools["default"]
+#   module.<call>.google_container_node_pool.pools["batch"]  ...
 # -----------------------------------------------------------------------------
-resource "google_container_node_pool" "default" {
+resource "google_container_node_pool" "pools" {
+  for_each = var.node_pools
+
   project  = var.project_id
-  name     = "${var.name}-pool"
+  name     = each.key == "default" ? "${var.name}-pool" : "${var.name}-${each.key}" # "default" keeps the v1 name
   location = var.location
   cluster  = google_container_cluster.this.name
 
-  # Fixed size OR autoscaler - never both. With autoscaling, node_count = null
-  # means "not managed by Terraform": the autoscaler owns the number of nodes,
-  # so plans don't fight it.
-  node_count = var.autoscaling == null ? var.node_count : null
+  # Fixed size OR autoscaler (see v1.1.0) - now per pool.
+  node_count = each.value.autoscaling == null ? each.value.node_count : null
 
-  # Rendered 0 or 1 times - same `dynamic` pattern as private_cluster_config.
-  # Adding/removing this block is an in-place update of the pool (no replacement).
   dynamic "autoscaling" {
-    for_each = var.autoscaling == null ? [] : [var.autoscaling]
+    for_each = each.value.autoscaling == null ? [] : [each.value.autoscaling]
     content {
       min_node_count  = autoscaling.value.min_nodes
       max_node_count  = autoscaling.value.max_nodes
@@ -119,19 +119,29 @@ resource "google_container_node_pool" "default" {
   }
 
   node_config {
-    machine_type = var.machine_type
-    spot         = var.spot
-    disk_type    = var.disk_type
-    disk_size_gb = var.disk_size_gb
+    machine_type = each.value.machine_type
+    spot         = each.value.spot
+    disk_type    = each.value.disk_type
+    disk_size_gb = each.value.disk_size_gb
     image_type   = "COS_CONTAINERD"
 
     service_account = google_service_account.nodes.email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"] # access limited by IAM, not scopes
 
-    tags   = var.node_network_tags
-    labels = var.node_labels
+    tags   = each.value.network_tags
+    labels = merge({ pool = each.key }, each.value.labels) # v1 default label was pool = "default"
 
-    # Pods get Workload Identity credentials, never the node's.
+    # Taints keep pods off a pool unless they tolerate it, e.g. a Spot batch pool
+    # that only batch jobs (with a matching toleration) may use.
+    dynamic "taint" {
+      for_each = each.value.taints
+      content {
+        key    = taint.value.key
+        value  = taint.value.value
+        effect = taint.value.effect
+      }
+    }
+
     workload_metadata_config {
       mode = "GKE_METADATA"
     }
@@ -141,4 +151,17 @@ resource "google_container_node_pool" "default" {
       enable_integrity_monitoring = true
     }
   }
+}
+
+# -----------------------------------------------------------------------------
+# v1.x -> v2.0.0: the single pool's ADDRESS changed. Without this block,
+# Terraform would destroy google_container_node_pool.default and create
+# google_container_node_pool.pools["default"] - every consumer would lose
+# their nodes on upgrade. `moved` says "same object, new address": state is
+# rewritten, nothing in GCP changes.
+# Keep moved blocks for at least one major version (consumers may skip versions).
+# -----------------------------------------------------------------------------
+moved {
+  from = google_container_node_pool.default
+  to   = google_container_node_pool.pools["default"]
 }
