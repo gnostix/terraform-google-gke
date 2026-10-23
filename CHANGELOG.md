@@ -5,6 +5,8 @@ versions: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-23
+
 ### Changed (BREAKING)
 - Node pools are now configured through one map, `node_pools` (default `{ default = {} }`),
   creating `google_container_node_pool.pools["<key>"]`. Key `default` keeps the name `<name>-pool`;
@@ -44,6 +46,7 @@ versions: [SemVer](https://semver.org).
 - Input validation for `name`, `location`, `release_channel`, `node_count`, `disk_type`, `disk_size_gb`.
 - Mocked `terraform test` suite and CI (fmt, validate, test on Terraform 1.9 and 1.13).
 
-[Unreleased]: https://github.com/gnostix/terraform-google-gke/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/gnostix/terraform-google-gke/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/gnostix/terraform-google-gke/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/gnostix/terraform-google-gke/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/gnostix/terraform-google-gke/releases/tag/v1.0.0
