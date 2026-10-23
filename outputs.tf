@@ -39,7 +39,7 @@ output "node_service_account" {
   value       = google_service_account.nodes.email
 }
 
-output "node_pool_name" {
-  description = "Name of the module's node pool."
-  value       = google_container_node_pool.default.name
+output "node_pool_names" {
+  description = "Map of node_pools key => GKE node pool name (v2.0.0; replaces node_pool_name)."
+  value       = { for k, p in google_container_node_pool.pools : k => p.name }
 }

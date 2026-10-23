@@ -32,11 +32,13 @@ jobs:
           terraform init -backend=false -input=false
           terraform validate
 
-      - name: validate example
-        working-directory: examples/basic
+      - name: validate examples
         run: |
-          terraform init -backend=false -input=false
-          terraform validate
+          for ex in examples/*/; do
+            echo "::group::$ex"
+            (cd "$ex" && terraform init -backend=false -input=false && terraform validate)
+            echo "::endgroup::"
+          done
 
       - name: test (mocked provider, plan-only)
         run: terraform test

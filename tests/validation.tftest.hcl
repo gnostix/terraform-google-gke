@@ -44,33 +44,42 @@ run "rejects_bad_location" {
   expect_failures = [var.location]
 }
 
+run "rejects_empty_node_pools" {
+  command = plan
+  variables {
+    node_pools = {}
+  }
+  expect_failures = [var.node_pools]
+}
+
+run "rejects_bad_pool_key" {
+  command = plan
+  variables {
+    node_pools = { "Batch_Pool" = {} }
+  }
+  expect_failures = [var.node_pools]
+}
+
 run "rejects_tiny_disk" {
   command = plan
   variables {
-    disk_size_gb = 5
+    node_pools = { default = { disk_size_gb = 5 } }
   }
-  expect_failures = [var.disk_size_gb]
+  expect_failures = [var.node_pools]
 }
 
 run "rejects_autoscaling_min_greater_than_max" {
   command = plan
   variables {
-    autoscaling = {
-      min_nodes = 3
-      max_nodes = 1
-    }
+    node_pools = { default = { autoscaling = { min_nodes = 3, max_nodes = 1 } } }
   }
-  expect_failures = [var.autoscaling]
+  expect_failures = [var.node_pools]
 }
 
-run "rejects_unknown_location_policy" {
+run "rejects_bad_taint_effect" {
   command = plan
   variables {
-    autoscaling = {
-      min_nodes       = 0
-      max_nodes       = 2
-      location_policy = "RANDOM"
-    }
+    node_pools = { default = { taints = [{ key = "a", value = "b", effect = "NoSchedule" }] } }
   }
-  expect_failures = [var.autoscaling]
+  expect_failures = [var.node_pools]
 }
