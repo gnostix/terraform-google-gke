@@ -22,24 +22,32 @@ run "defaults_are_the_documented_contract" {
     error_message = "deletion_protection must default to true."
   }
   assert {
-    condition     = google_container_node_pool.default.node_config[0].spot == false
+    condition     = length(google_container_node_pool.pools) == 1 && contains(keys(google_container_node_pool.pools), "default")
+    error_message = "Default node_pools must contain exactly one pool, \"default\"."
+  }
+  assert {
+    condition     = google_container_node_pool.pools["default"].name == "unit-pool"
+    error_message = "Pool key \"default\" must keep the v1 name <name>-pool (no replacement on upgrade)."
+  }
+  assert {
+    condition     = google_container_node_pool.pools["default"].node_config[0].spot == false
     error_message = "spot must default to false (on-demand nodes)."
   }
   assert {
-    condition     = google_container_node_pool.default.node_config[0].disk_type == "pd-balanced"
+    condition     = google_container_node_pool.pools["default"].node_config[0].disk_type == "pd-balanced"
     error_message = "disk_type must default to pd-balanced."
+  }
+  assert {
+    condition     = google_container_node_pool.pools["default"].node_count == 1
+    error_message = "Without autoscaling a pool must have a fixed node_count (default 1)."
+  }
+  assert {
+    condition     = length(google_container_node_pool.pools["default"].node_config[0].labels) == 1 && google_container_node_pool.pools["default"].node_config[0].labels["pool"] == "default"
+    error_message = "Pool label must be pool = <key> (same as v1 default)."
   }
   assert {
     condition     = google_container_cluster.this.secret_manager_config[0].enabled == false
     error_message = "Secret Manager add-on must be off by default."
-  }
-  assert {
-    condition     = google_container_node_pool.default.node_count == 1
-    error_message = "Without autoscaling the pool must have a fixed node_count (default 1)."
-  }
-  assert {
-    condition     = google_container_node_pool.default.name == "unit-pool"
-    error_message = "node pool name must be <name>-pool."
   }
   assert {
     condition     = google_service_account.nodes.account_id == "unit-nodes"
@@ -60,39 +68,45 @@ run "private_nodes_renders_the_block" {
   }
 }
 
-run "consumer_can_opt_into_spot" {
+# A typical split: small on-demand system pool + Spot batch pool that scales to zero.
+run "system_plus_spot_batch_pool" {
   command = plan
 
   variables {
-    spot = true
-  }
-
-  assert {
-    condition     = google_container_node_pool.default.node_config[0].spot == true
-    error_message = "spot = true must produce Spot nodes."
-  }
-}
-
-run "autoscaling_renders_the_block" {
-  command = plan
-
-  variables {
-    autoscaling = {
-      min_nodes = 0
-      max_nodes = 3
+    node_pools = {
+      default = {}
+      batch = {
+        machine_type = "n2-standard-8"
+        spot         = true
+        autoscaling  = { min_nodes = 0, max_nodes = 5 }
+        labels       = { workload = "batch" }
+        taints       = [{ key = "workload", value = "batch", effect = "NO_SCHEDULE" }]
+      }
     }
   }
 
   assert {
-    condition     = google_container_node_pool.default.autoscaling[0].min_node_count == 0
-    error_message = "autoscaling.min_nodes must map to min_node_count."
+    condition     = google_container_node_pool.pools["batch"].name == "unit-batch"
+    error_message = "Non-default pools must be named <name>-<key>."
   }
   assert {
-    condition     = google_container_node_pool.default.autoscaling[0].max_node_count == 3
-    error_message = "autoscaling.max_nodes must map to max_node_count."
+    condition     = google_container_node_pool.pools["batch"].node_config[0].spot == true
+    error_message = "batch pool must be Spot."
   }
   assert {
-    condition     = google_container_node_pool.default.autoscaling[0].location_policy == "ANY"
-    error_message = "location_policy must default to ANY."
+    condition     = google_container_node_pool.pools["batch"].autoscaling[0].min_node_count == 0
+    error_message = "batch pool must scale to zero."
+  }
+  assert {
+    condition     = length(google_container_node_pool.pools["batch"].node_config[0].labels) == 2 && google_container_node_pool.pools["batch"].node_config[0].labels["pool"] == "batch" && google_container_node_pool.pools["batch"].node_config[0].labels["workload"] == "batch"
+    error_message = "labels must merge pool = <key> with the pool's labels."
+  }
+  assert {
+    condition     = google_container_node_pool.pools["batch"].node_config[0].taint[0].effect == "NO_SCHEDULE"
+    error_message = "taints must be rendered."
+  }
+  assert {
+    condition     = google_container_node_pool.pools["default"].node_config[0].spot == false
+    error_message = "default pool must stay on-demand when another pool is Spot."
   }
 }

@@ -104,92 +104,72 @@ variable "enable_secret_manager_addon" {
 }
 
 # =============================================================================
-# Optional - node pool
+# Node pools (v2.0.0: one map replaces the v1 top-level pool inputs)
 # =============================================================================
-variable "machine_type" {
-  description = "Node machine type."
-  type        = string
-  default     = "e2-medium"
-}
-
-variable "node_count" {
-  description = "Fixed number of nodes (per zone for regional clusters). Ignored when `autoscaling` is set."
-  type        = number
-  default     = 1
-
-  validation {
-    condition     = var.node_count >= 0 && floor(var.node_count) == var.node_count
-    error_message = "node_count must be a whole number >= 0."
-  }
-}
-
-variable "spot" {
-  description = "Use Spot VMs for the node pool: 60-91% cheaper, but Google can reclaim them at any time (auto-repair brings a replacement). Default false = standard on-demand VMs; set true for interruption-tolerant workloads (dev, batch with checkpointing)."
-  type        = bool
-  default     = false
-}
-
-variable "disk_type" {
-  description = "Node boot disk type."
-  type        = string
-  default     = "pd-balanced"
-
-  validation {
-    condition     = contains(["pd-standard", "pd-balanced", "pd-ssd"], var.disk_type)
-    error_message = "disk_type must be pd-standard, pd-balanced or pd-ssd."
-  }
-}
-
-variable "disk_size_gb" {
-  description = "Node boot disk size in GB."
-  type        = number
-  default     = 100
-
-  validation {
-    condition     = var.disk_size_gb >= 10
-    error_message = "disk_size_gb must be >= 10."
-  }
-}
-
-variable "node_network_tags" {
-  description = "Network tags on node VMs (targets for firewall rules)."
-  type        = list(string)
-  default     = []
-}
-
-variable "node_labels" {
-  description = "Kubernetes labels on nodes (usable in nodeSelector)."
-  type        = map(string)
-  default = {
-    pool = "default"
-  }
-}
-
-variable "autoscaling" {
+variable "node_pools" {
   description = <<-EOT
-    Cluster autoscaler for the node pool. null (default) = fixed size from node_count.
-    min_nodes / max_nodes are PER ZONE. min_nodes = 0 lets an idle pool scale to zero
-    (pods are scheduled again when nodes come back). location_policy: BALANCED spreads
-    nodes across zones, ANY prefers zones with capacity (good for Spot).
+    Node pools keyed by a short name. Key "default" keeps the v1 pool name "<name>-pool";
+    any other key becomes "<name>-<key>". Every attribute is optional:
+      machine_type  (e2-medium)     node_count (1, ignored with autoscaling)
+      spot          (false)         autoscaling ({min_nodes, max_nodes, location_policy="ANY"} per zone, null = fixed size)
+      disk_type     (pd-balanced)   disk_size_gb (100)
+      network_tags  ([])            labels ({}; "pool = <key>" is always added)
+      taints        ([])            [{ key, value, effect = NO_SCHEDULE | PREFER_NO_SCHEDULE | NO_EXECUTE }]
   EOT
-  type = object({
-    min_nodes       = number
-    max_nodes       = number
-    location_policy = optional(string, "ANY")
-  })
-  default = null
-
-  validation {
-    condition = var.autoscaling == null || try(
-      var.autoscaling.min_nodes >= 0 &&
-      var.autoscaling.max_nodes >= 1 &&
-      var.autoscaling.max_nodes >= var.autoscaling.min_nodes,
-    false)
-    error_message = "autoscaling: need 0 <= min_nodes <= max_nodes and max_nodes >= 1."
+  type = map(object({
+    machine_type = optional(string, "e2-medium")
+    node_count   = optional(number, 1)
+    autoscaling = optional(object({
+      min_nodes       = number
+      max_nodes       = number
+      location_policy = optional(string, "ANY")
+    }))
+    spot         = optional(bool, false)
+    disk_type    = optional(string, "pd-balanced")
+    disk_size_gb = optional(number, 100)
+    network_tags = optional(list(string), [])
+    labels       = optional(map(string), {})
+    taints = optional(list(object({
+      key    = string
+      value  = string
+      effect = string
+    })), [])
+  }))
+  default = {
+    default = {}
   }
 
   validation {
-    condition     = var.autoscaling == null || try(contains(["BALANCED", "ANY"], var.autoscaling.location_policy), false)
-    error_message = "autoscaling.location_policy must be BALANCED or ANY."
+    condition     = length(var.node_pools) > 0
+    error_message = "node_pools needs at least one pool."
+  }
+
+  validation {
+    # "<name>-<key>" must fit GKE's 40-char pool name limit (name <= 24 + "-" + key <= 15).
+    condition     = alltrue([for k in keys(var.node_pools) : can(regex("^[a-z]([a-z0-9-]{0,13}[a-z0-9])?$", k))])
+    error_message = "node_pools keys: 1-15 chars, lowercase letters/digits/hyphens, start with a letter."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.node_pools) : contains(["pd-standard", "pd-balanced", "pd-ssd"], p.disk_type) && p.disk_size_gb >= 10])
+    error_message = "node_pools: disk_type must be pd-standard, pd-balanced or pd-ssd, and disk_size_gb >= 10."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.node_pools) : p.node_count >= 0 && floor(p.node_count) == p.node_count])
+    error_message = "node_pools: node_count must be a whole number >= 0."
+  }
+
+  validation {
+    condition = alltrue([for p in values(var.node_pools) : p.autoscaling == null || try(
+      p.autoscaling.min_nodes >= 0 && p.autoscaling.max_nodes >= 1 && p.autoscaling.max_nodes >= p.autoscaling.min_nodes &&
+      contains(["BALANCED", "ANY"], p.autoscaling.location_policy),
+    false)])
+    error_message = "node_pools: autoscaling needs 0 <= min_nodes <= max_nodes, max_nodes >= 1, location_policy BALANCED or ANY."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for p in values(var.node_pools) : [for t in p.taints : contains(["NO_SCHEDULE", "PREFER_NO_SCHEDULE", "NO_EXECUTE"], t.effect)]]))
+    error_message = "node_pools: taint effect must be NO_SCHEDULE, PREFER_NO_SCHEDULE or NO_EXECUTE."
   }
 }
