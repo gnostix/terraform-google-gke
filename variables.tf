@@ -97,6 +97,17 @@ variable "managed_prometheus" {
   default     = true
 }
 
+variable "gateway_api_channel" {
+  description = "GKE Gateway API controller: CHANNEL_STANDARD (GatewayClasses such as gke-l7-rilb) or CHANNEL_DISABLED."
+  type        = string
+  default     = "CHANNEL_DISABLED"
+
+  validation {
+    condition     = contains(["CHANNEL_STANDARD", "CHANNEL_DISABLED"], var.gateway_api_channel)
+    error_message = "gateway_api_channel must be CHANNEL_STANDARD or CHANNEL_DISABLED."
+  }
+}
+
 variable "enable_secret_manager_addon" {
   description = "Install the GKE Secret Manager add-on (CSI driver secrets-store-gke.csi.k8s.io)."
   type        = bool

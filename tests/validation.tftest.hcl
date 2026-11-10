@@ -83,3 +83,11 @@ run "rejects_bad_taint_effect" {
   }
   expect_failures = [var.node_pools]
 }
+
+run "rejects_unknown_gateway_api_channel" {
+  command = plan
+  variables {
+    gateway_api_channel = "CHANNEL_EXPERIMENTAL"
+  }
+  expect_failures = [var.gateway_api_channel]
+}

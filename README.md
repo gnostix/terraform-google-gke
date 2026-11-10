@@ -75,6 +75,7 @@ and then with `moved` blocks.
 | `monitoring_components` | list(string) | `["SYSTEM_COMPONENTS"]` | Cloud Monitoring components |
 | `managed_prometheus` | bool | `true` | Managed Service for Prometheus |
 | `enable_secret_manager_addon` | bool | `false` | GKE Secret Manager CSI add-on |
+| `gateway_api_channel` | string | `"CHANNEL_DISABLED"` | Gateway API controller: `CHANNEL_STANDARD` (e.g. `gke-l7-rilb`) or `CHANNEL_DISABLED` |
 | `node_pools` | map(object) | `{ default = {} }` | Node pools by key; see below |
 
 ### `node_pools` attributes (all optional)
