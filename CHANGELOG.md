@@ -5,6 +5,17 @@ versions: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-10
+
+### Added
+- `gateway_api_channel` (default `CHANNEL_DISABLED`): the GKE Gateway API controller;
+  `CHANNEL_STANDARD` turns it on, e.g. for the `gke-l7-rilb` GatewayClass. In-place update.
+
+### Upgrade notes
+- The cluster now always carries a `gateway_api_config` block. With the default, the first plan
+  after upgrading may show a one-time in-place update to `CHANNEL_DISABLED` on clusters that never
+  had the setting; the controller stays off.
+
 ## [2.0.0] - 2026-10-23
 
 ### Changed (BREAKING)

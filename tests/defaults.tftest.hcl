@@ -110,3 +110,24 @@ run "system_plus_spot_batch_pool" {
     error_message = "default pool must stay on-demand when another pool is Spot."
   }
 }
+
+run "gateway_api_is_off_by_default" {
+  command = plan
+
+  assert {
+    condition     = google_container_cluster.this.gateway_api_config[0].channel == "CHANNEL_DISABLED"
+    error_message = "The Gateway API controller must default to CHANNEL_DISABLED."
+  }
+}
+
+run "gateway_api_standard_channel" {
+  command = plan
+  variables {
+    gateway_api_channel = "CHANNEL_STANDARD"
+  }
+
+  assert {
+    condition     = google_container_cluster.this.gateway_api_config[0].channel == "CHANNEL_STANDARD"
+    error_message = "gateway_api_channel must set gateway_api_config.channel."
+  }
+}

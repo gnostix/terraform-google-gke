@@ -34,6 +34,12 @@ resource "google_container_cluster" "this" {
     services_secondary_range_name = var.services_range_name
   }
 
+  # GKE Gateway controller, e.g. for regional internal ALBs (gke-l7-rilb);
+  # CHANNEL_STANDARD turns it on, an in-place update.
+  gateway_api_config {
+    channel = var.gateway_api_channel
+  }
+
   # Rendered only for private nodes (provider docs: omit the block otherwise).
   dynamic "private_cluster_config" {
     for_each = var.private_nodes ? [1] : []
